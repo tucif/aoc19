@@ -7,9 +7,22 @@ class Module(object):
   def __init__(self, mass):
     self.mass = int(mass)
 
-  def get_fuel_required(self):
-    fuel_required = floor(self.mass/3) - 2
+  def get_fuel_required(self, account_for_fuel=True):
+    fuel_required = self.get_mass_fuel_required()
+    if not account_for_fuel:
+      return fuel_required
+
+    # Stage 2: account for fuel as part of mass
+    remaining_fuel = fuel_required
+    while remaining_fuel := self._get_fuel_for(remaining_fuel):
+      fuel_required += remaining_fuel
     return fuel_required
+
+  def get_mass_fuel_required(self):
+    return self._get_fuel_for(self.mass)
+
+  def _get_fuel_for(self, mass):
+    return max(0, floor(mass/3) - 2)
 
   def __str__(self):
     return f"Module(mass = {self.mass})"
@@ -31,8 +44,6 @@ def process_input():
   craft = Spacecraft([Module(line) for line in fileinput.input()])
   fuel_req = craft.get_fuel_required()
   logging.info(f'{fuel_req=}')
-
-
 
 if __name__ == '__main__':
   logging.basicConfig(level=logging.INFO)

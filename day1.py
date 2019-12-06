@@ -22,7 +22,7 @@ class Module(object):
     return self._get_fuel_for(self.mass)
 
   def _get_fuel_for(self, mass):
-    return max(0, floor(mass/3) - 2)
+    return max(0, mass//3 - 2)
 
   def __str__(self):
     return f"Module(mass = {self.mass})"

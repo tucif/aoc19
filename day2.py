@@ -2,6 +2,7 @@
 import logging
 import fileinput
 from itertools import product
+import sys
 
 def op_sum(arr, pos, pmodes):
   return op_bin(arr, pos, pmodes, lambda a,b: a+b)
@@ -51,10 +52,10 @@ def op_inp(arr, pos, pmodes):
 def op_out(arr, pos, pmodes):
   if pmodes[0] == 0:
     out_loc = arr[pos+1]
-    logging.info(f"OUT: {arr[out_loc]}")
+    sys.stdout.write(f"\nOUT: {arr[out_loc]}\n")
   else:
     out = arr[pos+1]
-    logging.info(f"OUT: {out}")
+    sys.stdout.write(f"\nOUT: {out}\n")
   return (1, None)
 
 
@@ -169,9 +170,8 @@ def find_result(target, code):
       logging.info(f"Answer: {100*noun+verb}")
       return (noun,verb)
    
-    
 if __name__ == "__main__":
-  logging.basicConfig(level=logging.DEBUG) 
+  logging.basicConfig(level=logging.INFO) 
   for line in fileinput.input():
     code = list(map(int,line.split(',')))
     #operate(code, 12, 2)

@@ -39,28 +39,43 @@ def op_bin(arr, pos, pmodes, operation):
 
 
 def op_inp(arr, pos, pmodes):
-  inp = int(input("INP: "))
+  logging.debug("INP:")
+  try:
+    inp = int(input())
+  except EOFError:
+    logging.info("Suspended")
+    return (0, None)
+
   if pmodes[0] == 0:
     dest = arr[pos+1]
     arr[dest] = inp
   else:
     logging.error(f"Write location parameter in immediate mode")
     return (0, None)
+  logging.debug(f"Read {inp=}")
   return (1, None)
 
 
 def op_out(arr, pos, pmodes):
   if pmodes[0] == 0:
     out_loc = arr[pos+1]
-    sys.stdout.write(f"\nOUT: {arr[out_loc]}\n")
+    out = arr[out_loc]
   else:
     out = arr[pos+1]
-    sys.stdout.write(f"\nOUT: {out}\n")
+
+  outmsg = f"{out}\n"
+  sys.stdout.write(outmsg)
+  sys.stdout.seek(sys.stdout.tell() - len(outmsg))
+  logging.debug(f"OUT: {outmsg} {sys.stdout.tell()=}")
+
   return (1, None)
 
 
 def op_halt(arr,pos, pmodes):
-  logging.info(f"HALT")
+  #msg = "HALT\n"
+  #sys.stdout.write(msg)
+  #sys.stdout.seek(sys.stdout.tell() - len(msg))
+  logging.info("HALT")
   return (0, None)
 
 def _op_jmp_cnd(arr, pos, pmodes, cnd):
@@ -127,9 +142,9 @@ def read_instruction(instruction):
   return (opcode, parameter_modes)
 
 
-def intcode(code):
+def intcode(code, pc = 0):
   logging.info(f"Input code: {code}")
-  pc = 0
+  logging.info(f"Program counter: {pc}")
   while True:
     instruction = code[pc]
     logging.debug(f"Processing {instruction=}")
@@ -147,11 +162,13 @@ def intcode(code):
       else:
         # +1 to move from instruction loc
         pc += (num_params+1)
+      logging.debug(f"{pc=}")
     else:
       break
 
   logging.info(f"Processed program: {','.join(map(str,code))}")
-  return code[0]
+  #return code[0]
+  return pc
     
 def operate(memory, noun, verb):
   opcodes = memory[:]

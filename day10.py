@@ -50,19 +50,20 @@ def find_best_station(asteroids):
       
 def find_nth_vaporized(data, station, nth):
   nth_asteroid = None
-  logging.debug(f"{len(data)}")
   station_neighbors = data[station]
   # sort asteroids by distance ascending
   for angle in station_neighbors:
     asteroids = station_neighbors[angle]
     if len(asteroids) < 2:
       continue
+    # ideally would've inserted this to a sorted list
     station_neighbors[angle] = sorted( asteroids, key=itemgetter(1))
     logging.debug(f"Resorted: {station_neighbors[angle]=}")
-  logging.debug(f"{len(station_neighbors)=}")
   angles = sorted(station_neighbors.keys())
   logging.debug(f"Sorted {angles=} {len(angles)=}")
+  # Start at 270 (which is UP in map) 
   vaporizer_angle = 270
+  # This could be a binary search
   for angle_idx , angle in enumerate(angles):
     if angle >= vaporizer_angle:
       break
@@ -73,8 +74,8 @@ def find_nth_vaporized(data, station, nth):
   while vaporized < len(data)-1:
     angle = angles[current_angle_idx]
     asteroids_at_angle = station_neighbors[angle]
-    #logging.debug(f"{current_angle_idx=}{vaporized=}")
     current_angle_idx = (current_angle_idx + 1 ) % (len(angles))
+    # Skip empty lists
     if not asteroids_at_angle:
       continue
     asteroid_vaporized = asteroids_at_angle.pop(0)
@@ -98,6 +99,8 @@ def get_angle_between(a,b):
       return (Decimal(angle), hyp)
     # left or right
     if b.y == a.y:
+      # Using 360 to force that to 
+      # come after 359 instead of zero
       angle = 180 if b.x < a.x else 360
       return (Decimal(angle), hyp)
     slope = abs(b.y - a.y) / hyp

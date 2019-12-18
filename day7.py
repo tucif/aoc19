@@ -8,42 +8,41 @@ from io import StringIO
 from itertools import permutations
 from itertools import cycle
 
-from day2 import intcode
+from day2 import standalone
+from day2 import Program
 
 def main():
   logging.basicConfig(level=logging.INFO)
   for line in fileinput.input():
-    code = list(map(int,line.split(',')))
+    program = Program(line)
     # phase 1
-    #evaluate_amplifiers(code)
+    evaluate_amplifiers(program)
     # phase 2
-    evaluate_amplifiers(code, 5, 9)
+    #evaluate_amplifiers(program, 5, 9)
   
 
-def evaluate_amplifiers(code, min_phase=0, max_phase=4):
-  orig_stdin = sys.stdin
-  orig_stdout = sys.stdout
+def evaluate_amplifiers(program, min_phase=0, max_phase=4):
   max_signal = 0
   max_phase_sequence = None
   phase_sequences = permutations(range(min_phase, max_phase+1)) 
   for sequence in phase_sequences:
+    orig_sequence = sequence
     logging.info(f"Processing {sequence=}")
 
-    feedback_mode = False
     signal = 0
+
+    amplifiers = []
+    for i in range(len(sequence)+1):
+      code_copy = program.code.copy()
+      program_copy = Program(code_copy)
+      amplifiers.append( program_copy )
+
     if min_phase > 4:
       # feedback loop mode
-      feedback_mode = True
-      amplifiers = []
-      for i in range(len(sequence)+1):
-        amplifiers.append( code[:] )
-
       sequence = cycle(enumerate(sequence))
-      #sequence = sequence * 3
+    else:
+      sequence = enumerate(sequence)
 
-
-    # all amplifiers start at pc = 0
-    pcs = [0] * len(amplifiers)
     for i, (amplifier, phase) in enumerate(sequence):
       logging.info("*"*12 + f" Amplifier {chr(amplifier+65)}\n")
       
@@ -51,17 +50,16 @@ def evaluate_amplifiers(code, min_phase=0, max_phase=4):
         # init with phase
         logging.info(f"{phase=}")
         logging.info(f"Input: {phase=}, {signal=}")
-        sys.stdin = StringIO(f"{phase}\n{signal}\n")
+        initial_input = f"{phase}\n{signal}"
       else:
         logging.info(f"Input {signal=}")
-        sys.stdin = StringIO(f"{signal}\n")
+        initial_input = f"{signal}"
 
-      sys.stdout = StringIO()
+      out = StringIO()
       # resume the amplifier at its last pc
-      last_pc = intcode(amplifiers[amplifier], pcs[amplifier])
-      pcs[amplifier] = last_pc
+      standalone(amplifiers[amplifier], initial_input, out)
 
-      output = sys.stdout.read().rstrip()
+      output = out.read().rstrip()
       logging.info(f"{output=}")
       out_match = re.search('(\d+)', output)
       if out_match:
@@ -69,24 +67,14 @@ def evaluate_amplifiers(code, min_phase=0, max_phase=4):
         logging.info(f"{signal=}")
       else:
         break
-      #halt_match = re.search('(HALT)',  output)
-
-      # reset stdout for next read
-      sys.stdout.seek(0)
-      sys.stdout.truncate()
-
-      #if halt_match and feedback_mode:
-      #  logging.debug("HALT from feedback mode")
-      #  break
 
     if int(signal) > max_signal:
       max_signal = int(signal)
-      max_phase_sequence = sequence
+      max_phase_sequence = list(orig_sequence)
 
-  # set back stdout to print result
-  sys.stdout = orig_stdout
   logging.info(f"{max_phase_sequence=}") 
   logging.info(f"{max_signal=}") 
+  return max_signal
 
 
 if __name__ == '__main__':

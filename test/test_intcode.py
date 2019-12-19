@@ -1,17 +1,12 @@
 import unittest
-import os
 from io import StringIO
+
+from test.lib import TestDay
 
 from day2 import intcode
 from day2 import Program
 from day2 import find_result
 
-class TestDay(unittest.TestCase):
-  def setUp(self):
-    testdir = os.path.dirname(__file__)
-    inp_path = 'inputs'
-    self.input_loc = os.path.join(testdir, inp_path)
-  
 
 class TestDay2(TestDay):
 

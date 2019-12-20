@@ -2,6 +2,8 @@ from test.lib import TestDay
 
 from day14 import NanoFactory
 
+ONE_TRILLION = 1_000_000_000_000
+
 class TestDay14(TestDay):
   def test_sample1(self):
     inp = '''10 ORE => 10 A
@@ -26,6 +28,12 @@ class TestDay14(TestDay):
     factory.produce_chemical('FUEL', 1)
     self.assertEqual(factory.get_ore_used(), 165)
 
+  def _max_fuel(self, factory, expected):
+    ore_per_fuel = factory.get_ore_used()
+    starting_fuel = ONE_TRILLION // ore_per_fuel
+    max_fuel = factory.max_fuel_with_ore(ONE_TRILLION, ore_per_fuel, starting_fuel//2, starting_fuel*2)
+    self.assertEqual(max_fuel, expected)
+
   def test_sample3(self):
     inp = '''157 ORE => 5 NZVS
 165 ORE => 6 DCFZ
@@ -38,7 +46,9 @@ class TestDay14(TestDay):
 3 DCFZ, 7 NZVS, 5 HKGWZ, 10 PSHF => 8 KHKGT'''
     factory = NanoFactory(inp)
     factory.produce_chemical('FUEL', 1)
-    self.assertEqual(factory.get_ore_used(), 13312)
+    ore_per_fuel = factory.get_ore_used()
+    self.assertEqual(ore_per_fuel, 13312)
+    self._max_fuel(factory, expected=82892753)
 
   def test_sample4(self):
     inp = '''2 VPVL, 7 FWMGM, 2 CXFTF, 11 MNCFX => 1 STKFG
@@ -56,6 +66,7 @@ class TestDay14(TestDay):
     factory = NanoFactory(inp)
     factory.produce_chemical('FUEL', 1)
     self.assertEqual(factory.get_ore_used(), 180697)
+    self._max_fuel(factory, expected=5586022)
     
   def test_sample5(self):
     inp = '''171 ORE => 8 CNZTR
@@ -78,6 +89,7 @@ class TestDay14(TestDay):
     factory = NanoFactory(inp)
     factory.produce_chemical('FUEL', 1)
     self.assertEqual(factory.get_ore_used(), 2210736)
+    self._max_fuel(factory, expected=460664)
 
   # Puzzles
 
@@ -87,3 +99,8 @@ class TestDay14(TestDay):
       factory.produce_chemical('FUEL', 1)
       self.assertEqual(factory.get_ore_used(), 843220)
 
+  def test_phase2(self):
+    with open(f"{self.input_loc}/day14") as inp:
+      factory = NanoFactory(inp.read())
+      factory.produce_chemical('FUEL', 1)
+      self._max_fuel(factory, expected=2169535)

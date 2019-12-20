@@ -74,7 +74,7 @@ class NanoFactory(object):
     if name != 'ORE':
       # update amount required with stock
       amount -= stock
-    batches = max(1,ceil(amount / chemical.batch_size))
+    batches = ceil(amount / chemical.batch_size)
     logging.debug(f"{indentation}producing {name}: needs {amount} (after taking {stock} from stock), make {batches=} of {chemical.batch_size} each")
     if not self.has_chemical_in_stock(name, original_amount):
       for ingredient in chemical.recipe:
@@ -87,16 +87,20 @@ class NanoFactory(object):
   def __repr__(self):
     return f"NanoFactory({self.chemicals})"
 
-  def max_fuel_with_ore(self, total_ore, ore_per_fuel):
-    # start searching from integer division
-    max_fuel = total_ore // ore_per_fuel
-    self.produce_chemical('FUEL', max_fuel)
-    while (ore_used := self.get_ore_used()) < total_ore:
-      remaining = total_ore - ore_used
-      logging.debug(f"{max_fuel=} {ore_used=}")
-      self.produce_chemical('FUEL', max_fuel)
-      max_fuel +=1
-    return max_fuel
+  def max_fuel_with_ore(self, total_ore, ore_per_fuel, fuel_low, fuel_high):
+    logging.debug(f"Searching bewteen {fuel_low:,} and {fuel_high:,}")
+    self.reset_stock()
+    fuel_mid = fuel_low + (fuel_high - fuel_low) // 2
+    self.produce_chemical('FUEL', fuel_mid)
+    ore = self.get_ore_used()
+    logging.debug(f"Can produce {fuel_mid:,} with {ore=:,}")
+    if ore > total_ore:
+      return self.max_fuel_with_ore(total_ore, ore_per_fuel, fuel_low, fuel_mid)
+    elif ore < total_ore - ore_per_fuel:
+      return self.max_fuel_with_ore(total_ore, ore_per_fuel, fuel_mid, fuel_high)
+    else:
+      return fuel_mid
+     
 
 
 
@@ -115,7 +119,8 @@ def main():
   logging.info(f"{ore_per_fuel=}")
   factory.reset_stock()
   one_trillion = 1_000_000_000_000
-  max_fuel = factory.max_fuel_with_ore(one_trillion, ore_per_fuel)
+  starting_fuel = one_trillion // ore_per_fuel
+  max_fuel = factory.max_fuel_with_ore(one_trillion, ore_per_fuel, starting_fuel//2, starting_fuel*2)
   logging.info(f"{max_fuel=}")
   
 

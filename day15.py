@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 import fileinput
 import logging
+import sys
 from io import StringIO
 from queue import Queue
+from queue import PriorityQueue
 from queue import LifoQueue
+from collections import defaultdict
 from enum import Enum
 
 from day2 import Program, standalone
 
 logger = logging.getLogger('Droid')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.ERROR)
 
 class Direction(Enum):
   NORTH = 1
@@ -33,6 +36,12 @@ class Location:
     WALL = 0
     PATH = 1
     SYSTEM = 2
+
+    def symbol(self):
+      symb = {self.WALL.value: '#', 
+              self.PATH.value: ' ', 
+              self.SYSTEM.value:'O'}
+      return symb[self.value]
 
   def __init__(self, x, y):
     self.x = x
@@ -94,7 +103,7 @@ class Location:
     l.type = self.type
     l.pred = self.pred
     return l
-           
+
   def __key(self):
     return (self.x, self.y)
 
@@ -103,6 +112,12 @@ class Location:
 
   def __eq__(self, other):
     return self.__key() == other.__key()
+
+  def __lt__(self, other):
+    #manhattan distance 
+    origin_from_self = abs(self.x) + abs(self.y)
+    origin_from_other = abs(other.x) + abs(other.y)
+    return origin_from_self < origin_from_other
 
   def __repr__(self):
     return f"({self.x},{self.y})[{self.type}]"
@@ -119,22 +134,27 @@ class RepairDroid(object):
     self.location = Location(0,0)
     
   def find_oxygen_system(self):
+    old_out = sys.stdout
     system_location = None
-    frontier = Queue()
+    frontier = PriorityQueue()
     came_from = {}
+    cost_so_far = {}
     #self.location.type = Location.Type.PATH
     came_from[self.location.tuple] = None
-    frontier.put(self.location)
+    self.explored = {}
+    cost_so_far[self.location.tuple] = 0
+    frontier.put((0,self.location))
+    # cheat: known location of oxygen system to use A*
+    oxy_loc = Location(-20, -14)
 
     while not frontier.empty():
       logger.debug("")
       logger.debug(f"{frontier.queue=}")
       logger.debug("")
-      logger.debug(f"{came_from.keys()=}")
-      if system_location:
-        break
+      logger.info(f"{len(came_from.keys())=}")
+      logger.debug(f"{cost_so_far=}")
 
-      current = frontier.get()
+      priority, current = frontier.get()
 
       # move to current
       self.move_to_location(current)
@@ -151,34 +171,66 @@ class RepairDroid(object):
           neighbor.pred = current
           neighbor.pred_direction = direction.opposite()
           came_from[neighbor.tuple] = current
+          self.explored[neighbor] = True
 
           if status == self.Status.FOUND:
             neighbor.type = Location.Type.SYSTEM
             system_location = neighbor
+            new_cost = cost_so_far[current.tuple] + 1
+            cost_so_far[system_location.tuple] = new_cost
+            self.move(direction.opposite())
             break
           elif status == self.Status.WALL:
             neighbor.type = Location.Type.WALL
           elif status == self.Status.MOVED:
             neighbor.type = Location.Type.PATH
-            # only put paths into frontier for further exploration
-            logger.debug(f"Adding {neighbor=} to frontier")
-            frontier.put(neighbor)
             # move back to current
             logger.debug("Moving Back >>>")
             self.move(direction.opposite())
             logger.debug("Moved Back <<<")
+            # only put paths into frontier for further exploration
+            new_cost = cost_so_far[current.tuple] + 1
+            logger.info(f"{new_cost=} {neighbor.tuple in cost_so_far}")
+            if (neighbor.tuple not in cost_so_far or 
+                new_cost < cost_so_far[neighbor.tuple]):
+              cost_so_far[neighbor.tuple] = new_cost
+              heuristic = (abs(oxy_loc.x - neighbor.x) +
+                           abs(oxy_loc.y - neighbor.y))
+              priority =  new_cost + heuristic
+              logger.debug(f"Adding {neighbor=} to frontier")
+              frontier.put((priority, neighbor))
+
+
+      sys.stdout = old_out
+      self.render()
+      if system_location:
+        break
 
       # move back
       self.move_to_origin(current)
 
     logger.info(f"{system_location=}")
-    sl = system_location
-    path_length = 0
-    while sl.pred:
-      path_length+=1
-      sl = sl.pred
-    logger.info(f"{path_length=}")
+    logger.info(f"{cost_so_far[system_location.tuple]}")
     return system_location
+
+  def render(self):
+    size = 48
+    mid = size//2
+    screen =[['.'] * size for i in range(size)]
+     
+    for loc in self.explored.keys():
+      symbol = loc.type.symbol()
+      if loc.tuple == self.location.tuple:
+        symbol = '@'
+      screen[mid+loc.y][mid+loc.x] = symbol
+
+    output = StringIO()
+    for y in range(size):
+      for x in range(size):
+        output.write(f"{screen[y][x]}")
+      output.write('\n')
+    output.seek(0)
+    print(output.read())
 
   def move(self, d):
     direction = Direction(d)
@@ -199,6 +251,8 @@ class RepairDroid(object):
     curr = location
 
     while curr.pred:
+      if curr == self.location:
+        break
       # to move from origin, follow opposite directions
       path.put(curr.pred_direction.opposite())
       curr = curr.pred
@@ -215,10 +269,9 @@ class RepairDroid(object):
       # to move to origin, follow pred direction
       status = self.move(curr.pred_direction)
       if status != self.Status.MOVED:
-        logger.error(f"Found {status.name} while moving back from {curr} to origin")
+        # early exit
+        break
       curr = curr.pred
-    # TODO: sometimes does not move to real origin
-    # probably because we modified some of the path's preds
     logger.debug(f"Moved to origin {self.location.tuple}<<<")
 
 

@@ -12,7 +12,7 @@ from enum import Enum
 from day2 import Program, standalone
 
 logger = logging.getLogger('Droid')
-logger.setLevel(logging.ERROR)
+logger.setLevel(logging.INFO)
 
 class Direction(Enum):
   NORTH = 1
@@ -36,11 +36,13 @@ class Location:
     WALL = 0
     PATH = 1
     SYSTEM = 2
+    UNKNOWN = 3
 
     def symbol(self):
       symb = {self.WALL.value: '#', 
               self.PATH.value: ' ', 
-              self.SYSTEM.value:'O'}
+              self.SYSTEM.value:'O',
+              self.UNKNOWN.value: '.'}
       return symb[self.value]
 
   def __init__(self, x, y):
@@ -133,28 +135,30 @@ class RepairDroid(object):
     self.program = Program(code)
     self.location = Location(0,0)
     
-  def find_oxygen_system(self):
+  def find_oxygen_system(self, early_exit=False):
     old_out = sys.stdout
     system_location = None
+    system_location_cost = 0
     frontier = PriorityQueue()
     came_from = {}
     cost_so_far = {}
-    #self.location.type = Location.Type.PATH
+    self.location.type = Location.Type.PATH
     came_from[self.location.tuple] = None
     self.explored = {}
     cost_so_far[self.location.tuple] = 0
     frontier.put((0,self.location))
-    # cheat: known location of oxygen system to use A*
+    # cheat: known location of oxygen system to feed A*
     oxy_loc = Location(-20, -14)
+    oxygen_ticks = 0
 
     while not frontier.empty():
       logger.debug("")
       logger.debug(f"{frontier.queue=}")
       logger.debug("")
-      logger.info(f"{len(came_from.keys())=}")
+      logger.debug(f"{len(came_from.keys())=}")
       logger.debug(f"{cost_so_far=}")
 
-      priority, current = frontier.get()
+      oxygen_ticks, current = frontier.get()
 
       # move to current
       self.move_to_location(current)
@@ -173,44 +177,80 @@ class RepairDroid(object):
           came_from[neighbor.tuple] = current
           self.explored[neighbor] = True
 
-          if status == self.Status.FOUND:
-            neighbor.type = Location.Type.SYSTEM
-            system_location = neighbor
-            new_cost = cost_so_far[current.tuple] + 1
-            cost_so_far[system_location.tuple] = new_cost
-            self.move(direction.opposite())
-            break
-          elif status == self.Status.WALL:
+          if status == self.Status.WALL:
             neighbor.type = Location.Type.WALL
-          elif status == self.Status.MOVED:
-            neighbor.type = Location.Type.PATH
+          else:
             # move back to current
             logger.debug("Moving Back >>>")
             self.move(direction.opposite())
             logger.debug("Moved Back <<<")
-            # only put paths into frontier for further exploration
+
+            if status == self.Status.MOVED:
+              if system_location:
+                # mark paths as filled with oxygen
+                # after the oxygen station was found
+                neighbor.type = Location.Type.SYSTEM
+              else:
+                neighbor.type = Location.Type.PATH
+                
+            elif status == self.Status.FOUND:
+              if system_location:
+                continue
+              neighbor.type = Location.Type.SYSTEM
+              system_location = neighbor
+              system_location_cost = cost_so_far[current.tuple] + 1
+              if early_exit:
+                break
+              #redefine origin
+              oxygen_ticks = 0
+              frontier = PriorityQueue()
+              came_from = {}
+              cost_so_far = {}
+              came_from[neighbor.tuple] = None
+              cost_so_far[neighbor.tuple] = 0
+              # Clear paths from explored for re-rendering
+              new_explored = {}
+              for loc in self.explored.keys():
+                if loc.type != Location.Type.PATH:
+                  new_explored[loc] = True
+              self.explored = new_explored
+
+              frontier.put((oxygen_ticks,neighbor))
+              break #from for
+
+            # only put walkable blocks into frontier for further exploration
             new_cost = cost_so_far[current.tuple] + 1
-            logger.info(f"{new_cost=} {neighbor.tuple in cost_so_far}")
+            logger.debug(f"{new_cost=} {neighbor.tuple in cost_so_far}")
             if (neighbor.tuple not in cost_so_far or 
                 new_cost < cost_so_far[neighbor.tuple]):
               cost_so_far[neighbor.tuple] = new_cost
               heuristic = (abs(oxy_loc.x - neighbor.x) +
                            abs(oxy_loc.y - neighbor.y))
-              priority =  new_cost + heuristic
+              #priority =  new_cost 
+              #priority =  new_cost + heuristic
+              # fastest reaching oxygen system
+              if system_location:
+                # using priority to determine seconds of oxygen, 
+                # as we process 1 second once we've processed all adjacent neighbors
+                priority = oxygen_ticks + 1
+              else:
+                priority = heuristic
               logger.debug(f"Adding {neighbor=} to frontier")
               frontier.put((priority, neighbor))
 
 
       sys.stdout = old_out
       self.render()
-      if system_location:
+      if system_location and early_exit:
         break
 
       # move back
       self.move_to_origin(current)
 
     logger.info(f"{system_location=}")
-    logger.info(f"{cost_so_far[system_location.tuple]}")
+    logger.info(f"{system_location_cost=}")
+    logger.info(F"{oxygen_ticks=}")
+
     return system_location
 
   def render(self):

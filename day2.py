@@ -86,6 +86,7 @@ def op_inp(program, pmodes):
 def op_out(program, pmodes):
   arr = program.code
   pos = program.pc
+  output = program.output
   if pmodes[0] == 0:
     out_loc = arr[pos+1]
   elif pmodes[0] == 1:
@@ -97,10 +98,10 @@ def op_out(program, pmodes):
   logging.debug(f"{out_loc=}")
 
   outmsg = f"{out}\n"
-  if not sys.stdout.isatty():
-    sys.stdout.write(outmsg)
+  if output:
+    output.write(outmsg)
     if program.rewind_output:
-      sys.stdout.seek(sys.stdout.tell() - len(outmsg))
+      output.seek(output.tell() - len(outmsg))
   logging.info(f"OUT: {out}")
 
   return RET_CONT
@@ -207,11 +208,15 @@ def read_instruction(instruction):
 
 
 class Program(object):
-  def __init__(self, code, pc=0, rb=0, rw=1):
+  def __init__(self, code, pc=0, rb=0, rw=1, output=None):
     self.code = self.init_program(code)
     self.pc = pc 
     self.relative_base = rb
     self.rewind_output = rw
+    if output is None:
+      self.output = sys.stdout
+    else:
+      self.output = output
 
   def init_program(self, codestring):
     if isinstance(codestring, str):
@@ -223,6 +228,19 @@ class Program(object):
     else:
       return codestring
 
+  def exec_standalone(self, initial_input):
+    old_stdin = sys.stdin
+    if initial_input:
+      sys.stdin = StringIO(f"{initial_input}\n")
+
+    result = intcode(self)
+
+    #rewind the override
+    self.output.seek(0)
+
+    sys.stdin = old_stdin
+    return result
+  
 
 def intcode(program):
   #logging.debug(f"Input code: {program.code}")
@@ -247,20 +265,8 @@ def intcode(program):
 
 
 def standalone(program, initial_input, stdout_override):
-  old_stdout = sys.stdout
-  old_stdin = sys.stdin
-  if initial_input:
-    sys.stdin = StringIO(f"{initial_input}\n")
-  sys.stdout = stdout_override
-
-  result = intcode(program)
-
-  #rewind the override
-  stdout_override.seek(0)
-
-  sys.stdin = old_stdin
-  sys.stout = old_stdout
-  return result
+  program.output = stdout_override
+  return program.exec_standalone(initial_input)
   
     
 def operate(memory, noun, verb):
@@ -285,7 +291,7 @@ def find_result(target, code):
    
 
 if __name__ == "__main__":
-  logging.basicConfig(level=logging.DEBUG) 
+  logging.basicConfig(level=logging.INFO) 
   for line in fileinput.input():
     #operate(code, 12, 2)
     #find_result(19690720, code)
